@@ -1,0 +1,10 @@
+### NKS load-balancer 메뉴얼 ###n
+
+## nks-lb.yml 파일 생성 ##
+
+1. kubectl --kubeconfig nks-cloud.yml apply -f nks-lb.yml을 통하여 배포
+2. kubectl --kubeconfig nks-cloud.yml get svc example-service을 통하여 생성된 로드밸런서 인스턴스 사설 IP주소 확인 가능
+3. kubcetl --kubeconfig nks-cloud.yml create deployment --image nginx my-nginx -> my-nginx 이름을 가진 deployment 배포. nginx 파드 구동 하는 명령어
+
+
+kubectl --kubeconfig nks-cloud.yml get service ,  kubectl --kubeconfig nks-cloud.yml get pods로 확인 서비스 확인이 가능하다.
