@@ -1,53 +1,44 @@
-# 워크플로우 이름
 name: Deploy WordPress via Bastion
 
-# main 브랜치에 push될 때 실행
 on:
   push:
     branches: [ main ]
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest  # GitHub Actions에서 제공하는 최신 Ubuntu 환경
-
-    env:  # GitHub Secrets를 환경변수로 전달
-      DB_NAME: ${{ secrets.DB_NAME }}
-      DB_USER: ${{ secrets.DB_USER }}
-      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-      DB_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD }}
-      BASTION_HOST: ${{ secrets.BASTION_HOST }}
-      TARGET_HOST: ${{ secrets.TARGET_HOST }}
+    runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository  # 레포지토리 코드 다운로드
+    - name: Checkout Repository
       uses: actions/checkout@v3
 
-    - name: Set up SSH Agent  # SSH Agent 설정 (.pem 키 로딩)
+    - name: Set up SSH Agent
       uses: webfactory/ssh-agent@v0.7.0
       with:
         ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-    - name: Deploy to EC2 via Bastion  # 배스천 경유 EC2 접속 후 배포
+    - name: Deploy to EC2 via Bastion
+      env:
+        DB_NAME: ${{ secrets.DB_NAME }}
+        DB_USER: ${{ secrets.DB_USER }}
+        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        DB_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD }}
+        BASTION_HOST: ${{ secrets.BASTION_HOST }}
+        TARGET_HOST: ${{ secrets.TARGET_HOST }}
       run: |
         ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            -tt -J ec2-user@$BASTION_HOST ec2-user@$TARGET_HOST << EOF
+            -tt -J ec2-user@$BASTION_HOST ec2-user@$TARGET_HOST << 'EOSSH'
 
-          # 워드프레스 프로젝트 폴더로 이동
           cd /home/ec2-user/wordpress-repo
-
-          # 최신 코드 pull
           git pull origin main
 
-          # .env 파일 생성
-          cat <<EOT > .env
-DB_NAME=$DB_NAME
-DB_USER=$DB_USER
-DB_PASSWORD=$DB_PASSWORD
-DB_ROOT_PASSWORD=$DB_ROOT_PASSWORD
-EOT
+          echo "DB_NAME=$DB_NAME" > .env
+          echo "DB_USER=$DB_USER" >> .env
+          echo "DB_PASSWORD=$DB_PASSWORD" >> .env
+          echo "DB_ROOT_PASSWORD=$DB_ROOT_PASSWORD" >> .env
 
-          # 컨테이너 재배포
           docker-compose down
           docker-compose up -d --build
-        EOF
+
+        EOSSH
 
