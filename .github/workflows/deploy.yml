@@ -2,36 +2,39 @@ name: Deploy WordPress via Bastion
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main ]  # main 브랜치에 push가 발생할 때 워크플로우 실행
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # GitHub Actions에서 제공하는 Ubuntu 최신 이미지 환경 사용
 
     steps:
-    - name: Checkout Repository  # 레포지토리 코드 가져오기
+    - name: Checkout Repository
       uses: actions/checkout@v3
 
-    - name: Set up SSH Agent  # SSH 접속을 위한 에이전트 설정 (필수 아님)
+    - name: Set up SSH Agent
       uses: webfactory/ssh-agent@v0.7.0
       with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}  # GitHub Secrets에 등록된 PEM 키 전체 내용
 
-    - name: Create SSH Key File  # PEM 키를 임시 파일로 생성
+    - name: Create SSH Key File
       run: |
         echo "${{ secrets.SSH_PRIVATE_KEY }}" > docker-educate.pem
         chmod 600 docker-educate.pem
 
-    - name: Deploy to EC2 via Bastion  # Bastion을 통해 Private EC2에 배포
+    - name: Deploy to EC2 via Bastion
       run: |
-        ssh -i docker-educate.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        ssh -i docker-educate.pem \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
             -J ec2-user@${{ secrets.BASTION_HOST }} \
-            ec2-user@${{ secrets.TARGET_HOST }} << 'EOF'
+            ec2-user@${{ secrets.TARGET_HOST }} << EOF
 
         cd /home/ec2-user/wordpress-repo
 
         git pull origin main
 
+        # .env 파일 생성
         echo "DB_NAME=${{ secrets.DB_NAME }}" > .env
         echo "DB_USER=${{ secrets.DB_USER }}" >> .env
         echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
