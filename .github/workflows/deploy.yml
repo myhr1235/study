@@ -2,11 +2,11 @@ name: Deploy WordPress via Bastion
 
 on:
   push:
-    branches: [ main ]  # main 브랜치에 push가 발생할 때 워크플로우 실행
+    branches: [ main ]
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest  # GitHub Actions에서 제공하는 Ubuntu 최신 이미지 환경 사용
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout Repository
@@ -15,26 +15,17 @@ jobs:
     - name: Set up SSH Agent
       uses: webfactory/ssh-agent@v0.7.0
       with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}  # GitHub Secrets에 등록된 PEM 키 전체 내용
-
-    - name: Create SSH Key File
-      run: |
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > docker-educate.pem
-        chmod 600 docker-educate.pem
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
     - name: Deploy to EC2 via Bastion
       run: |
-        ssh -i docker-educate.pem \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
+        ssh -o StrictHostKeyChecking=no \
             -J ec2-user@${{ secrets.BASTION_HOST }} \
-            ec2-user@${{ secrets.TARGET_HOST }} << EOF
+            ec2-user@${{ secrets.TARGET_HOST }} << 'EOF'
 
         cd /home/ec2-user/wordpress-repo
-
         git pull origin main
 
-        # .env 파일 생성
         echo "DB_NAME=${{ secrets.DB_NAME }}" > .env
         echo "DB_USER=${{ secrets.DB_USER }}" >> .env
         echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
@@ -44,4 +35,3 @@ jobs:
         docker-compose up -d --build
 
         EOF
-
