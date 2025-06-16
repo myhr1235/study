@@ -16,11 +16,12 @@
 
 
 --------------------------------
-
-'📂 study/docker/wordpress-repo
+```
+📂 study/docker/wordpress-repo
 ├── docker-compose.yml
 ├── wp-config.php             ← GitHub로 버전관리
 ├── .env                      ← 비밀키 분리 (GitHub Actions에서 참조)
 ├── .github/
 │   └── workflows/
 │       └── deploy.yml        ← CI/CD 스크립트'
+```
