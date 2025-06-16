@@ -19,11 +19,14 @@ jobs:
 
     - name: Deploy to EC2 via Bastion
       run: |
-        ssh -o StrictHostKeyChecking=no \
+        ssh -tt \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
             -J ec2-user@${{ secrets.BASTION_HOST }} \
             ec2-user@${{ secrets.TARGET_HOST }} << 'EOF'
 
         cd /home/ec2-user/wordpress-repo
+
         git pull origin main
 
         echo "DB_NAME=${{ secrets.DB_NAME }}" > .env
