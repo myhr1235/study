@@ -9,36 +9,36 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
+    - name: Checkout Repository  # 레포지토리 코드 가져오기
       uses: actions/checkout@v3
 
-    - name: Set up SSH Agent
+    - name: Set up SSH Agent  # SSH 접속을 위한 에이전트 설정 (필수 아님)
       uses: webfactory/ssh-agent@v0.7.0
       with:
         ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-    - name: Deploy to EC2 via Bastion
-      env:
-        DB_NAME: ${{ secrets.DB_NAME }}
-        DB_USER: ${{ secrets.DB_USER }}
-        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-        DB_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD }}
-        BASTION_HOST: ${{ secrets.BASTION_HOST }}
-        TARGET_HOST: ${{ secrets.TARGET_HOST }}
+    - name: Create SSH Key File  # PEM 키를 임시 파일로 생성
       run: |
-        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            -tt -J ec2-user@$BASTION_HOST ec2-user@$TARGET_HOST << 'EOSSH'
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > docker-educate.pem
+        chmod 600 docker-educate.pem
 
-          cd /home/ec2-user/wordpress-repo
-          git pull origin main
+    - name: Deploy to EC2 via Bastion  # Bastion을 통해 Private EC2에 배포
+      run: |
+        ssh -i docker-educate.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            -J ec2-user@${{ secrets.BASTION_HOST }} \
+            ec2-user@${{ secrets.TARGET_HOST }} << 'EOF'
 
-          echo "DB_NAME=$DB_NAME" > .env
-          echo "DB_USER=$DB_USER" >> .env
-          echo "DB_PASSWORD=$DB_PASSWORD" >> .env
-          echo "DB_ROOT_PASSWORD=$DB_ROOT_PASSWORD" >> .env
+        cd /home/ec2-user/wordpress-repo
 
-          docker-compose down
-          docker-compose up -d --build
+        git pull origin main
 
-        EOSSH
+        echo "DB_NAME=${{ secrets.DB_NAME }}" > .env
+        echo "DB_USER=${{ secrets.DB_USER }}" >> .env
+        echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+        echo "DB_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }}" >> .env
+
+        docker-compose down
+        docker-compose up -d --build
+
+        EOF
 
