@@ -1,47 +1,44 @@
-# 워크플로우 이름 (GitHub Actions 탭에서 표시될 이름)
 name: Deploy WordPress via Bastion
 
-# main 브랜치에 push가 발생할 때 이 워크플로우 실행
 on:
   push:
     branches: [ main ]
 
 jobs:
-  deploy:  # Job 이름
-    runs-on: ubuntu-latest  # GitHub 제공 Ubuntu 환경에서 실행
+  deploy:
+    runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repo  # GitHub 레포를 runner에 clone
+    - name: Checkout Repo
       uses: actions/checkout@v3
 
-    - name: Set up SSH Agent  # SSH 비밀키를 GitHub Actions에서 사용할 수 있도록 로드
+    - name: Set up SSH Agent
       uses: webfactory/ssh-agent@v0.7.0
       with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}  # GitHub Secrets에 저장된 PEM 키 전체 내용
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
     - name: Deploy to EC2 via Bastion
+      env:
+        DB_NAME: ${{ secrets.DB_NAME }}
+        DB_USER: ${{ secrets.DB_USER }}
+        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        DB_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD }}
       run: |
-        # Bastion 서버를 경유(-J)하여 Target EC2에 SSH 접속
         ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             -J ec2-user@${{ secrets.BASTION_HOST }} \
-            ec2-user@${{ secrets.TARGET_HOST }} << 'EOF'
+            ec2-user@${{ secrets.TARGET_HOST }} << EOF
 cd /home/ec2-user/wordpress-repo
-
-# 최신 코드 가져오기
 git pull origin main
 
-# .env 파일 동적 생성 (GitHub Secrets 값을 주입)
+# .env 파일 생성 (GitHub Actions에서 전달한 환경변수 사용)
 cat <<EOT > .env
-DB_NAME=${{ secrets.DB_NAME }}
-DB_USER=${{ secrets.DB_USER }}
-DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-DB_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }}
+DB_NAME=$DB_NAME
+DB_USER=$DB_USER
+DB_PASSWORD=$DB_PASSWORD
+DB_ROOT_PASSWORD=$DB_ROOT_PASSWORD
 EOT
 
-# 기존 컨테이너 종료 및 삭제
 docker-compose down
-
-# 새 컨테이너 빌드 및 실행 (백그라운드)
 docker-compose up -d --build
 EOF
 
