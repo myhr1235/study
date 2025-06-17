@@ -9,9 +9,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    # 1. GitHub 레포지토리 체크아웃
     - name: Checkout Repository
       uses: actions/checkout@v3
 
+    # 2. AWS 인증 (ECR 푸시용)
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v2
       with:
@@ -19,32 +21,38 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ secrets.AWS_REGION }}
 
+    # 3. ECR 로그인
     - name: Log in to Amazon ECR
       run: |
         aws ecr get-login-password | docker login \
           --username AWS \
           --password-stdin ${{ secrets.ECR_REPOSITORY }}
 
+    # 4. Docker 이미지 빌드 및 태깅
     - name: Build Docker Image
       run: |
         docker build -t wordpress-ecr docker/wordpress-repo
         docker tag wordpress-ecr:latest ${{ secrets.ECR_REPOSITORY }}:latest
 
+    # 5. Docker 이미지 ECR에 푸시
     - name: Push to ECR
       run: |
         docker push ${{ secrets.ECR_REPOSITORY }}:latest
 
-    - name: Decode SSH private key
+    # 6. PEM 키 복호화 (base64 인코딩된 키 사용)
+    - name: Decode SSH Private Key
       run: |
         echo "${{ secrets.SSH_PRIVATE_KEY_B64 }}" | base64 -d > docker-educate.pem
         chmod 600 docker-educate.pem
 
+    # 7. Bastion 경유 Target EC2 접속 후 배포 실행
     - name: Deploy to EC2 via Bastion
       run: |
-        ssh -i docker-educate.pem -tt \
+        ssh -tt -i docker-educate.pem \
           -o StrictHostKeyChecking=no \
           -o UserKnownHostsFile=/dev/null \
-          -J ec2-user@${{ secrets.BASTION_HOST }} ec2-user@${{ secrets.TARGET_HOST }} \
+          -o ProxyCommand="ssh -i docker-educate.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ec2-user@${{ secrets.BASTION_HOST }} -W %h:%p" \
+          ec2-user@${{ secrets.TARGET_HOST }} \
           "cd /home/ec2-user/docker/study/docker/wordpress-repo && \
            git pull origin main && \
            echo DB_NAME='${{ secrets.DB_NAME }}' > .env && \
