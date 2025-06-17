@@ -2,7 +2,7 @@ name: Deploy WordPress via Bastion
 
 on:
   push:
-    branches: [main]
+    branches: main
 
 jobs:
   deploy:
@@ -23,7 +23,6 @@ jobs:
 
     # 3. ECR 로그인
     - name: Log in to Amazon ECR
-      id: login-ecr
       run: |
         aws ecr get-login-password | docker login \
           --username AWS \
@@ -40,10 +39,10 @@ jobs:
       run: |
         docker push ${{ secrets.ECR_REPOSITORY }}:latest
 
-    # 6. SSH 키 복호화 (base64 인코딩된 .pem 키를 복호화)
-    - name: Decode SSH private key
+    # 6. SSH 키 작성 (PEM 원문 그대로 사용)
+    - name: Write SSH private key
       run: |
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" | base64 --decode > docker-educate.pem
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > docker-educate.pem
         chmod 600 docker-educate.pem
 
     # 7. Bastion을 통해 EC2에 배포 명령 실행
@@ -55,10 +54,9 @@ jobs:
           -J ec2-user@${{ secrets.BASTION_HOST }} ec2-user@${{ secrets.TARGET_HOST }} \
           "cd /home/ec2-user/docker/study/docker/wordpress-repo && \
            git pull origin main && \
-           echo 'DB_NAME=${{ secrets.DB_NAME }}' > .env && \
-           echo 'DB_USER=${{ secrets.DB_USER }}' >> .env && \
-           echo 'DB_PASSWORD=${{ secrets.DB_PASSWORD }}' >> .env && \
-           echo 'DB_HOST=${{ secrets.DB_HOST }}' >> .env && \
-           echo 'DB_PORT=${{ secrets.DB_PORT }}' >> .env && \
+           echo DB_NAME='${{ secrets.DB_NAME }}' > .env && \
+           echo DB_USER='${{ secrets.DB_USER }}' >> .env && \
+           echo DB_PASSWORD='${{ secrets.DB_PASSWORD }}' >> .env && \
+           echo DB_HOST='${{ secrets.DB_HOST }}' >> .env && \
+           echo DB_PORT='${{ secrets.DB_PORT }}' >> .env && \
            docker-compose down && docker-compose up -d"
-
