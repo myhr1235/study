@@ -2,7 +2,7 @@ name: Deploy WordPress via Bastion
 
 on:
   push:
-    branches: [ main ]
+    branches: main
 
 jobs:
   deploy:
@@ -25,7 +25,7 @@ jobs:
             -J ec2-user@${{ secrets.BASTION_HOST }} \
             ec2-user@${{ secrets.TARGET_HOST }} << 'EOF'
 
-        cd /home/ec2-user/wordpress-repo
+        cd /home/ec2-user/study/docker/wordpress-repo
 
         git pull origin main
 
