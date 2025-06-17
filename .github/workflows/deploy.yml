@@ -2,18 +2,16 @@ name: Deploy WordPress via Bastion
 
 on:
   push:
-    branches: main
+    branches: [main]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. GitHub 레포지토리 코드 체크아웃
     - name: Checkout Repository
       uses: actions/checkout@v3
 
-    # 2. AWS 인증 설정 (ECR 로그인용)
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v2
       with:
@@ -21,31 +19,26 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ secrets.AWS_REGION }}
 
-    # 3. ECR 로그인
     - name: Log in to Amazon ECR
       run: |
         aws ecr get-login-password | docker login \
           --username AWS \
           --password-stdin ${{ secrets.ECR_REPOSITORY }}
 
-    # 4. Docker 이미지 빌드 및 태깅
     - name: Build Docker Image
       run: |
         docker build -t wordpress-ecr docker/wordpress-repo
         docker tag wordpress-ecr:latest ${{ secrets.ECR_REPOSITORY }}:latest
 
-    # 5. ECR에 이미지 푸시
     - name: Push to ECR
       run: |
         docker push ${{ secrets.ECR_REPOSITORY }}:latest
 
-    # 6. SSH 키 작성 (PEM 원문 그대로 사용)
-    - name: Write SSH private key
+    - name: Decode SSH private key
       run: |
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > docker-educate.pem
+        echo "${{ secrets.SSH_PRIVATE_KEY_B64 }}" | base64 -d > docker-educate.pem
         chmod 600 docker-educate.pem
 
-    # 7. Bastion을 통해 EC2에 배포 명령 실행
     - name: Deploy to EC2 via Bastion
       run: |
         ssh -i docker-educate.pem -tt \
