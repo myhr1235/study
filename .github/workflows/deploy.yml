@@ -1,55 +1,62 @@
-name: Deploy WordPress via Bastion  # GitHub Actions 워크플로우 이름
+name: Deploy WordPress via Bastion
 
 on:
   push:
-    branches: [ main ]  # main 브랜치에 push 될 때 실행됨
+    branches: [ main ]
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest  # GitHub Actions가 사용할 런너 환경
+    runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository  # GitHub 레포지토리 코드 가져오기
+    # 1. GitHub 레포지토리 코드 체크아웃
+    - name: Checkout Repository
       uses: actions/checkout@v3
 
-    - name: Configure AWS credentials  # AWS CLI 인증 설정
+    # 2. AWS 인증 설정 (ECR에 로그인하기 위해)
+    - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v2
       with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}  # GitHub Secrets에서 가져온 AWS Access Key
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}  # GitHub Secrets에서 가져온 AWS Secret Key
-        aws-region: ${{ secrets.AWS_REGION }}  # ex) ap-northeast-2
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
 
-    - name: Log in to Amazon ECR  # ECR에 로그인 (도커 인증)
+    # 3. ECR 로그인
+    - name: Log in to Amazon ECR
       id: login-ecr
       run: |
         aws ecr get-login-password | docker login \
-        --username AWS \
-        --password-stdin ${{ secrets.ECR_REPOSITORY }}
+          --username AWS \
+          --password-stdin ${{ secrets.ECR_REPOSITORY }}
 
-    - name: Build Docker Image  # Docker 이미지 빌드
+    # 4. Docker 이미지 빌드 및 ECR 태깅
+    - name: Build Docker Image
       run: |
-        docker build -t wordpress-ecr ./study/docker/wordpress-repo  # 빌드된 이미지를 wordpress-ecr로 태깅
-        docker tag wordpress-ecr:latest ${{ secrets.ECR_REPOSITORY }}:latest  # ECR URI로 재태깅
+        docker build -t wordpress-ecr ./study/docker/wordpress-repo  # Dockerfile이 있는 경로에서 빌드
+        docker tag wordpress-ecr:latest ${{ secrets.ECR_REPOSITORY }}:latest  # ECR 업로드용 태그 설정
 
-    - name: Push to ECR  # ECR로 이미지 푸시
+    # 5. ECR에 이미지 푸시
+    - name: Push to ECR
       run: |
         docker push ${{ secrets.ECR_REPOSITORY }}:latest
 
-    - name: Set up SSH Agent  # SSH 연결을 위한 비공개 키 등록
+    # 6. SSH Agent 설정 (pem 키로 EC2 접근)
+    - name: Set up SSH Agent
       uses: webfactory/ssh-agent@v0.7.0
       with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}  # GitHub Secrets에 등록된 PEM 키
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-    - name: Deploy to EC2 via Bastion  # Bastion을 통해 Web EC2에 접속 후 배포 명령 실행
+    # 7. Bastion을 통해 EC2에 배포 명령 실행
+    - name: Deploy to EC2 via Bastion
       run: |
         ssh -tt -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
           -J ec2-user@${{ secrets.BASTION_HOST }} ec2-user@${{ secrets.TARGET_HOST }} \
           "cd /home/ec2-user/study/docker/wordpress-repo && \
-           git pull origin main && \  # 최신 코드 가져오기
-           echo DB_NAME=${{ secrets.DB_NAME }} > .env && \  # .env 파일에 DB 환경변수 저장
+           git pull origin main && \
+           echo DB_NAME=${{ secrets.DB_NAME }} > .env && \
            echo DB_USER=${{ secrets.DB_USER }} >> .env && \
            echo DB_PASSWORD=${{ secrets.DB_PASSWORD }} >> .env && \
            echo DB_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }} >> .env && \
-           docker-compose down && \  # 기존 컨테이너 종료
-           docker-compose up -d --build"  # 새 이미지로 컨테이너 재실행 (백그라운드)
+           docker-compose down && \
+           docker-compose up -d --build"
 
