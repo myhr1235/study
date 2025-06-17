@@ -48,27 +48,17 @@ jobs:
 
     # 7. Bastion을 통해 EC2에 배포 명령 실행
     - name: Deploy to EC2 via Bastion
-      env:
-        DB_NAME: ${{ secrets.DB_NAME }}
-        DB_USER: ${{ secrets.DB_USER }}
-        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-        DB_HOST: ${{ secrets.DB_HOST }}
-        DB_PORT: ${{ secrets.DB_PORT }}
       run: |
         ssh -i docker-educate.pem -tt \
           -o StrictHostKeyChecking=no \
           -o UserKnownHostsFile=/dev/null \
-          -J ec2-user@${{ secrets.BASTION_HOST }} ec2-user@${{ secrets.TARGET_HOST }} << 'ENDSSH'
-            cd /home/ec2-user/docker/study/docker/wordpress-repo
-            git pull origin main
-            cat <<EOF > .env
-DB_NAME=${DB_NAME}
-DB_USER=${DB_USER}
-DB_PASSWORD=${DB_PASSWORD}
-DB_HOST=${DB_HOST}
-DB_PORT=${DB_PORT}
-EOF
-            docker-compose down
-            docker-compose up -d
-ENDSSH
+          -J ec2-user@${{ secrets.BASTION_HOST }} ec2-user@${{ secrets.TARGET_HOST }} \
+          "cd /home/ec2-user/docker/study/docker/wordpress-repo && \
+           git pull origin main && \
+           echo 'DB_NAME=${{ secrets.DB_NAME }}' > .env && \
+           echo 'DB_USER=${{ secrets.DB_USER }}' >> .env && \
+           echo 'DB_PASSWORD=${{ secrets.DB_PASSWORD }}' >> .env && \
+           echo 'DB_HOST=${{ secrets.DB_HOST }}' >> .env && \
+           echo 'DB_PORT=${{ secrets.DB_PORT }}' >> .env && \
+           docker-compose down && docker-compose up -d"
 
