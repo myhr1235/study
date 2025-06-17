@@ -32,7 +32,7 @@ jobs:
     # 4. Docker 이미지 빌드 및 ECR 태깅
     - name: Build Docker Image
       run: |
-        docker build -t wordpress-ecr study/docker/wordpress-repo  # Dockerfile이 있는 경로에서 빌드
+        docker build -t wordpress-ecr .study/docker/wordpress-repo  # Dockerfile이 있는 경로에서 빌드
         docker tag wordpress-ecr:latest ${{ secrets.ECR_REPOSITORY }}:latest  # ECR 업로드용 태그 설정
 
     # 5. ECR에 이미지 푸시
@@ -51,7 +51,7 @@ jobs:
       run: |
         ssh -tt -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
           -J ec2-user@${{ secrets.BASTION_HOST }} ec2-user@${{ secrets.TARGET_HOST }} \
-          "cd /home/ec2-user/study/docker/wordpress-repo && \
+          "cd /home/ec2-user/docker/study/docker/wordpress-repo && \
            git pull origin main && \
            echo DB_NAME=${{ secrets.DB_NAME }} > .env && \
            echo DB_USER=${{ secrets.DB_USER }} >> .env && \
