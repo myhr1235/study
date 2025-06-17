@@ -2,7 +2,7 @@ name: Deploy WordPress via Bastion
 
 on:
   push:
-    branches: main
+    branches: [ main ]
 
 jobs:
   deploy:
@@ -19,22 +19,14 @@ jobs:
 
     - name: Deploy to EC2 via Bastion
       run: |
-        ssh -tt \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
-            -J ec2-user@${{ secrets.BASTION_HOST }} \
-            ec2-user@${{ secrets.TARGET_HOST }} << 'EOF'
+        ssh -tt -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          -J ec2-user@${{ secrets.BASTION_HOST }} ec2-user@${{ secrets.TARGET_HOST }} \
+          "cd /home/ec2-user/study/docker/wordpress-repo && \
+           git pull origin main && \
+           echo DB_NAME=${{ secrets.DB_NAME }} > .env && \
+           echo DB_USER=${{ secrets.DB_USER }} >> .env && \
+           echo DB_PASSWORD=${{ secrets.DB_PASSWORD }} >> .env && \
+           echo DB_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }} >> .env && \
+           docker-compose down && \
+           docker-compose up -d --build"
 
-        cd /home/ec2-user/study/docker/wordpress-repo
-
-        git pull origin main
-
-        echo "DB_NAME=${{ secrets.DB_NAME }}" > .env
-        echo "DB_USER=${{ secrets.DB_USER }}" >> .env
-        echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
-        echo "DB_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }}" >> .env
-
-        docker-compose down
-        docker-compose up -d --build
-
-        EOF
