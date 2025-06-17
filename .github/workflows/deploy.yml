@@ -33,7 +33,7 @@ jobs:
     - name: Build Docker Image
       run: |
 <<<<<<< HEAD
-        docker build -t wordpress-ecr .study/docker/wordpress-repo  # Dockerfile이 있는 경로에서 빌드
+        docker build -t wordpress-ecr docker/wordpress-repo  # Dockerfile이 있는 경로에서 빌드
 =======
         docker build -t wordpress-ecr docker/wordpress-repo  # Dockerfile이 있는 경로에서 빌드
 >>>>>>> a56090b (delete located stduy)
