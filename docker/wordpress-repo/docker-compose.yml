@@ -18,6 +18,8 @@ services:
 
   db:
     image: mysql:5.7 # mysql 버전
+    env_file:
+      - .env
     container_name: wordpress-db
     restart: always
     environment:
