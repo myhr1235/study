@@ -12,6 +12,8 @@ jobs:
     # 1. GitHub 레포지토리 체크아웃
     - name: Checkout Repository
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 0 # 전체 커밋 가져오기 - rebase/merge 시 필요
 
     # 2. AWS 인증 (ECR 푸시용)
     - name: Configure AWS credentials
@@ -54,6 +56,7 @@ jobs:
           -o ProxyCommand="ssh -i docker-educate.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ec2-user@${{ secrets.BASTION_HOST }} -W %h:%p" \
           ec2-user@${{ secrets.TARGET_HOST }} \
           "cd /home/ec2-user/docker/study/docker/wordpress-repo && \
+           git config pull.rebase true && \
            git pull origin main && \
            echo DB_NAME='${{ secrets.DB_NAME }}' > .env && \
            echo DB_USER='${{ secrets.DB_USER }}' >> .env && \
