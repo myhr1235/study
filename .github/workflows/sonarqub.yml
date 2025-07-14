@@ -21,9 +21,17 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Install SonarScanner
+        run: |
+          curl -sSLo sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+          unzip sonar-scanner.zip -d $HOME
+          export PATH="$HOME/sonar-scanner-5.0.1.3006-linux/bin:$PATH"
+
       - name: Run SonarQube Scanner
-        uses: SonarSource/sonarqube-scan-action@v2
-        with:
-          host-url: 'http://docker-test-alb-10113341.ap-northeast-2.elb.amazonaws.com:9000'
-          login: ${{ secrets.SONAR_TOKEN }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          $HOME/sonar-scanner-5.0.1.3006-linux/bin/sonar-scanner \
+            -Dsonar.host.url=http://docker-test-alb-10113341.ap-northeast-2.elb.amazonaws.com:9000 \
+            -Dsonar.login=$SONAR_TOKEN
 
