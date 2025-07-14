@@ -1,0 +1,28 @@
+name: SonarQube Code Scan
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  sonarqube:
+    name: SonarQube Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+
+      - name: Run SonarQube Scanner
+        uses: SonarSource/sonarqube-scan-action@v2
+        with:
+          host-url: 'http://docker-test-alb-10113341.ap-northeast-2.elb.amazonaws.com:9000'
+          login: ${{ secrets.SONAR_TOKEN }}
+
