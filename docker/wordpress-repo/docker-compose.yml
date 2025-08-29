@@ -2,23 +2,44 @@ version: '3.8'
 
 services:
   wordpress:
-    image: wordpress:latest ##wordpress 최신 버전
-    container_name: wordpress
+    # ❌ 기존: image: wordpress:latest
+    # ✅ ECS용 변경: 로컬에서 커스텀 Dockerfile 빌드 (ECS와 동일한 환경)
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: wordpress-local  # ✅ 이름 변경: 로컬임을 명시
     restart: always
     ports:
-      - "8080:80"
+      - "8080:80"  # 🔄 기존과 동일
     environment:
-      WORDPRESS_DB_HOST: db
+      # ✅ ECS용 변경: 환경변수명을 ECS와 통일 (WORDPRESS_ 접두사 사용)
+      # ❌ 기존: WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_HOST: ${DB_HOST:-db}  # ✅ 기본값 설정으로 로컬/RDS 모두 지원
       WORDPRESS_DB_USER: ${DB_USER}
       WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
       WORDPRESS_DB_NAME: ${DB_NAME}
+      WORDPRESS_DB_PORT: ${DB_PORT:-3306}  # ✅ ECS용 추가: 포트 설정
+      
+      # ✅ ECS용 추가: 개발용 디버그 설정 (실제 ECS에서는 제거됨)
+      WORDPRESS_DEBUG: 1
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_DEBUG', true);
+        define('WP_DEBUG_LOG', true);
+        define('WP_DEBUG_DISPLAY', false);
     volumes:
-      - ./wp-config.php:/var/www/html/wp-config.php
+      # 🔄 기존과 유사하지만 더 구체적
+      # ❌ 기존: - ./wp-config.php:/var/www/html/wp-config.php (Dockerfile에서 처리)
       - ./wp-content:/var/www/html/wp-content
+      - ./uploads.ini:/usr/local/etc/php/conf.d/uploads.ini  # ✅ ECS용 추가: 업로드 제한 설정
+    depends_on:
+      - db
+    networks:
+      - wordpress-network  # ✅ ECS용 추가: 명시적 네트워크 설정
 
+  # 🔄 기존과 거의 동일: 로컬 개발용 MySQL (실제 ECS에서는 RDS 사용)
   db:
-    image: mysql:5.7 # mysql 버전
-    container_name: wordpress-db
+    image: mysql:5.7
+    container_name: wordpress-db-local  # ✅ 이름 변경: 로컬임을 명시
     restart: always
     environment:
       MYSQL_DATABASE: ${DB_NAME}
@@ -27,6 +48,15 @@ services:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
     volumes:
       - db_data:/var/lib/mysql
+    networks:
+      - wordpress-network  # ✅ ECS용 추가: 명시적 네트워크 설정
+    ports:
+      - "3306:3306"  # ✅ ECS용 추가: 외부 접근용 (디버깅용)
 
 volumes:
-  db_data:
+  db_data:  # 🔄 기존과 동일
+
+# ✅ ECS용 추가: 명시적 네트워크 정의
+networks:
+  wordpress-network:
+    driver: bridge
