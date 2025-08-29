@@ -51,7 +51,7 @@ jobs:
     - name: Download current ECS task definition
       run: |
         aws ecs describe-task-definition \
-          --task-definition ${{ secrets.ECS_TASK_DEFINITION }} \
+          --task-definition ${{ secrets.ECS_TASK_DEFINITION_FAMILY }} \
           --query taskDefinition > task-definition.json
         
         # Remove unnecessary fields that AWS adds
