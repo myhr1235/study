@@ -1,60 +1,81 @@
-name: Deploy WordPress via Bastion
+# ✅ ECS용 변경: 워크플로우 이름 변경
+name: Deploy WordPress to ECS
 
 on:
   push:
-    branches: [main]
+    branches: [main]  # 🔄 기존과 동일
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-latest  # 🔄 기존과 동일
+    
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0  # 전체 커밋 이력 가져오기 (rebase/merge 처리에 필요)
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Log in to Amazon ECR
-        run: |
-          aws ecr get-login-password | docker login \
-            --username AWS \
-            --password-stdin ${{ secrets.ECR_REPOSITORY }}
-
-      - name: Build Docker Image
-        run: |
-          docker build -t wordpress-ecr docker/wordpress-repo
-          docker tag wordpress-ecr:latest ${{ secrets.ECR_REPOSITORY }}:latest
-
-      - name: Push to ECR
-        run: |
-          docker push ${{ secrets.ECR_REPOSITORY }}:latest
-
-      - name: Decode SSH Private Key
-        run: |
-          echo "${{ secrets.SSH_PRIVATE_KEY_B64 }}" | base64 -d > docker-educate.pem
-          chmod 600 docker-educate.pem
-
-      - name: Deploy to EC2 via Bastion
-        run: |
-          ssh -tt -i docker-educate.pem \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
-            -o ProxyCommand="ssh -i docker-educate.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ec2-user@${{ secrets.BASTION_HOST }} -W %h:%p" \
-            ec2-user@${{ secrets.TARGET_HOST }} \
-            "cd /home/ec2-user/docker/study/docker/wordpress-repo && \
-             git config pull.rebase true && \
-             git config rebase.autoStash true && \
-             git pull --rebase origin main && \
-             echo DB_NAME='${{ secrets.DB_NAME }}' > .env && \
-             echo DB_USER='${{ secrets.DB_USER }}' >> .env && \
-             echo DB_PASSWORD='${{ secrets.DB_PASSWORD }}' >> .env && \
-             echo DB_HOST='${{ secrets.DB_HOST }}' >> .env && \
-             echo DB_PORT='${{ secrets.DB_PORT }}' >> .env && \
-             docker-compose down && docker-compose up -d"
+    # 🔄 기존과 동일: 체크아웃
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        
+    # 🔄 기존과 동일: AWS 자격증명
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+        
+    # ✅ ECS용 변경: 더 안전한 ECR 로그인 방식
+    # ❌ 기존: aws ecr get-login-password | docker login --username AWS --password-stdin
+    - name: Log in to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+      
+    # ✅ ECS용 변경: Git SHA 기반 이미지 태깅 (버전 관리 개선)
+    # ❌ 기존: docker tag wordpress-ecr:latest ${{ secrets.ECR_REPOSITORY }}:latest
+    - name: Build, tag, and push image to Amazon ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}  # ✅ 변경: 전체 URI가 아닌 이름만
+        IMAGE_TAG: ${{ github.sha }}  # ✅ ECS용 추가: Git SHA로 버전 관리
+      run: |
+        # Docker 이미지 빌드
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG docker/wordpress-repo
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        
+        # ECR에 푸시
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        
+    # ✅ ECS용 완전히 새로운 방식: ECS Task Definition 다운로드
+    # ❌ 기존: SSH로 EC2 접근
+    - name: Download current ECS task definition
+      run: |
+        aws ecs describe-task-definition \
+          --task-definition ${{ secrets.ECS_TASK_DEFINITION }} \
+          --query taskDefinition > task-definition.json
+        
+        # Remove unnecessary fields that AWS adds
+        jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)' task-definition.json > clean-task-definition.json
+        mv clean-task-definition.json task-definition.json
+          
+    # ✅ ECS용 완전히 새로운 방식: Task Definition 이미지 업데이트
+    # ❌ 기존: docker-compose down && docker-compose up -d
+    - name: Update task definition with new image
+      id: task-def
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: task-definition.json
+        container-name: wordpress-container  # Terraform에서 정의한 컨테이너 이름과 일치해야 함
+        image: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY_NAME }}:${{ github.sha }}
+        
+    # 환경변수는 Terraform에서 관리하므로 여기서는 이미지만 업데이트
+          
+    # ✅ ECS용 완전히 새로운 방식: ECS 서비스 업데이트
+    # ❌ 기존: SSH 배포
+    - name: Deploy Amazon ECS task definition
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: ${{ steps.task-def.outputs.task-definition }}
+        service: ${{ secrets.ECS_SERVICE }}
+        cluster: ${{ secrets.ECS_CLUSTER }}
+        wait-for-service-stability: true  # ✅ ECS용 추가: 배포 완료까지 대기
